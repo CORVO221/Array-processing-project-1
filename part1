@@ -1,0 +1,324 @@
+clc
+clear
+%% signal model
+M=5;
+N=20;
+Delta=0.5;
+theta=[-20,30];
+f=[0.1,0.3];
+SNR=100;
+[X,A,S]=gendata(M,N,Delta,theta,f,SNR);
+%singular value
+svd0=svd(X);
+plot(svd0)
+%svd:samples double
+[X1,A1,S1]=gendata(M,N*2,Delta,theta,f,SNR);
+svd1=svd(X1);
+%svd;number of antenna double
+[X2,A2,S2]=gendata(M*2,N,Delta,theta,f,SNR);
+svd2=svd(X2);
+%svd:angle of sources becomes small
+[X3,A3,S3]=gendata(M,N,Delta,[20,30],f,SNR);
+svd3=svd(X3);
+%svd:frequency difference becomes small
+[X4,A4,S4]=gendata(M,N,Delta,theta,[0.25 0.24],SNR);
+svd4=svd(X4);
+
+%% estimation of directions
+d=2;
+thetah=esprit(X,d);
+
+%% estimation of frequencies
+fh=espritfreq(X,d);
+
+%% jointly estimation
+m=5;
+[thetahh,fhh]=joint(X,d,m);
+
+%% performance of three algorithms
+d=2;
+M=5;
+N=20;
+theta=[-20,30];
+f=[0.1,0.12];
+% algorithm 1:angle
+mean1=zeros(2,6);
+dev1=zeros(2,6);
+for SNR=0:4:20
+data=zeros(2,1000);
+for trial=1:1000
+[X,A,S]=gendata(M,N,Delta,theta,f,SNR);
+thetaa=esprit(X,d);
+thetaa=sort(thetaa)';
+data(:,trial)=thetaa;
+end
+mean1(1,SNR/4+1)=sum(data(1,:))/1000;
+mean1(2,SNR/4+1)=sum(data(2,:))/1000;
+dev1(1,SNR/4+1)=std(data(1,:));
+dev1(2,SNR/4+1)=std(data(2,:));
+end
+
+% algorithm 2:frequency
+
+mean2=zeros(2,6);
+dev2=zeros(2,6);
+for SNR=0:4:20
+data=zeros(2,1000);
+for trial=1:1000
+[X,A,S]=gendata(M,N,Delta,theta,f,SNR);
+thetaaa=espritfreq(X,d);
+thetaaa=sort(thetaaa)';
+data(:,trial)=thetaaa;
+end
+mean2(1,SNR/4+1)=sum(data(1,:))/1000;
+mean2(2,SNR/4+1)=sum(data(2,:))/1000;
+dev2(1,SNR/4+1)=std(data(1,:));
+dev2(2,SNR/4+1)=std(data(2,:));
+end
+
+% algorithm 3:joint
+
+% angle
+mean31=zeros(2,6);
+dev31=zeros(2,6);
+% frequency
+mean32=zeros(2,6);
+dev32=zeros(2,6);
+for SNR=0:4:20
+data=zeros(2,1000);
+data1=zeros(2,1000);
+for trial=1:1000
+[X,A,S]=gendata(M,N,Delta,theta,f,SNR);
+[thetaaaa,fa]=joint(X,d,m);
+thetaaaa=sort(thetaaaa)';
+fa=sort(fa)';
+data(:,trial)=thetaaaa;
+data1(:,trial)=fa;
+end
+mean31(1,SNR/4+1)=sum(data(1,:))/1000;
+mean31(2,SNR/4+1)=sum(data(2,:))/1000;
+dev31(1,SNR/4+1)=std(data(1,:));
+dev31(2,SNR/4+1)=std(data(2,:));
+mean32(1,SNR/4+1)=sum(data1(1,:))/1000;
+mean32(2,SNR/4+1)=sum(data1(2,:))/1000;
+dev32(1,SNR/4+1)=std(data1(1,:));
+dev32(2,SNR/4+1)=std(data1(2,:));
+end
+% plot angle mean
+% 
+% plot(mean1(1,:));hold on
+% plot(mean1(2,:));hold on
+% plot(mean31(1,:));hold on
+% plot(mean31(2,:));hold on
+% legend('ESPRIT ANGLE1','ESPRIT ANGLE2','JOINT ANGLE1','JOINT ANGLE2')
+% xlabel('SNR/dB') 
+% ylabel('angle/degree') 
+
+% plot angle dev
+
+% plot(dev1(1,:));hold on
+% plot(dev31(1,:));
+% legend('ESPRIT','JOINT ANGLE1')
+% xlabel('SNR/dB') 
+% ylabel('deviation') 
+
+% plot frequency mean
+% subplot(1,2,1);
+% plot(mean2(1,:));hold on
+% plot(mean2(2,:));hold on
+% plot(mean32(1,:));hold on
+% plot(mean32(2,:));hold on
+% legend('ESPRIT FREQ1','ESPRIT FREQ2','JOINT FREQ1','JOINT FREQ2')
+% xlabel('SNR/dB') 
+% ylabel('digital frequency') 
+
+% plot freq dev
+% subplot(1,2,2);
+% plot(dev2(1,:));hold on
+% plot(dev32(1,:));
+% legend('ESPRIT','JOINT ANGLE1')
+% xlabel('SNR/dB') 
+% ylabel('deviation') 
+%% zero forcing
+
+% based on direction
+[X,A,S]=gendata(M,N,Delta,theta,f,10);
+theb=esprit(X,d);
+theb=sort(theb);
+% estimate A
+Ah=zeros(M,d);
+the=exp(1j*pi*sind(theb));
+for i=1:M
+    Ah(i,:)=the.^(i-1);
+end
+% ZF filter1
+W=(inv(Ah'*Ah)*Ah')';
+Sh1=W'*X;
+
+% based on frequency
+fb=espritfreq(X,d);
+fb=sort(fb);
+% estimate S
+Sh2=zeros(2,20);
+    for i=1:N
+    Sh2(:,i)=exp(1j*2*pi*fb'*(i-1));
+    end
+% ZF filter2
+Ahh=X*Sh2'*inv(Sh2*Sh2');
+WW=(inv(Ahh'*Ahh)*Ahh')';
+Sh3=WW'*X;
+plot(S)
+
+%% compare the spatial response
+% angle
+respons1=zeros(1,180);
+respons2=zeros(1,180);
+% first response
+for angle=-89:90
+[Xc,Ac,Sc]=gendata(M,N,Delta,angle,0.1,10);
+% angh=esprit(Xc,1);
+% Ach=zeros(M,1);
+% thet=exp(1j*pi*sind(angh));
+% for i=1:M
+%     Ach(i,:)=thet.^(i-1);
+% end
+% w=(inv(Ach'*Ach)*Ach')';
+gg=W'*Ac;
+respons1(1,angle+90)=norm(gg,"fro");
+% respons1(1,angle+90)=w'*Ac;
+end
+
+
+% second response
+for angle=-89:90
+[Xcc,Acc,Scc]=gendata(M,N,Delta,angle,0.1,10);
+% freqh=espritfreq(Xcc,1);
+% Sch=zeros(1,20);
+%     for i=1:N
+%     Sch(i)=exp(1j*2*pi*freqh*(i-1));
+%     end
+% Achh=Xcc*Sch'*inv(Sch*Sch');
+% ww=(inv(Achh'*Achh)*Achh')';
+ggg=WW'*Acc;
+respons2(angle+90)=norm(ggg,"fro");
+end
+plot(-89:90,respons1);
+hold on
+plot(-89:90,respons2);
+xlabel('angle/degree') 
+ylabel('response') 
+legend('ZF based on angle','ZF based on frequency')    
+    
+    
+%% data generator function
+function [X,A,S]=gendata(M,N,Delta,theta,f,SNR)
+theta=theta*pi/180;
+d=length(theta);
+A=zeros(M,d);
+S=zeros(d,N);
+%generate A
+for m=1:M
+    for n=1:d
+        A(m,n)=exp(1j*2*pi*(m-1)*Delta*sin(theta(n)));
+    end
+end
+%generate S
+for m=1:d
+    for n=1:N
+        S(m,n)=exp(1j*2*pi*f(m)*(n-1));
+    end
+end
+%noise power
+PN=10^(-SNR/10);
+%Noise matrix
+Noise=sqrt(PN)*sqrt(1/2)*(randn(M,N)+1j*randn(M,N));
+%generate X
+X=A*S+Noise;
+end
+%% esprit:directions
+function theta=esprit(X,d)
+[U,~,~]=svd(X);
+U=U(:,1:d);
+M=length(X(:,1));
+N=length(X(1,:));
+ux=U(1:M-1,:);
+uy=U(2:M,:);
+uu=inv(ux'*ux)*ux'*uy;
+[~,D,~]=eig(uu);
+theta=zeros(1,d);
+%obtain angles from eigenvalues
+for i=1:d
+    theta(i)=asind(angle(D(i,i))/pi);
+end
+end
+%% esprit:frequency
+% function f = espritfreq(X,d)
+% N=length(X(1,:));
+% m=round(N/3);
+% x1=X(1,:);
+% %data matrix for frequency estimation
+% X1=zeros(m,N-m+1);
+% for i=1:N-m+1
+%     for j=1:m
+%     X1(j,i)=x1(i+j-1);
+%     end
+% end
+% [U,~,~]=svd(X1);
+% U=U(:,1:d);
+% M=length(X1(:,1));
+% N=length(X1(1,:));
+% ux=U(1:M-1,:);
+% uy=U(2:M,:);
+% uu=inv(ux'*ux)*ux'*uy;
+% [~,D,~]=eig(uu);
+% for i=1:d
+%     f(i)=angle(D(i,i))/(2*pi);
+% end
+% end
+function f = espritfreq(X,d)
+[M,N] = size(X);
+Z_u = X(:,1:N-1);
+Z_l = X(:,2:N);
+Z = [Z_u;Z_l];
+[U,~,~] = svd(Z);
+U_z = U(:,1:d);
+U_x = U_z(1:M,:);
+U_y = U_z(M+1:2*M,:);
+f = angle(eig(pinv(U_x)*U_y))/(2*pi);
+end
+
+
+
+%% joint 
+function [theta,f] = joint(X,d,m)
+[M,N] = size(X);
+Z = zeros(M*m,N-m+1);
+for i=1:N-m+1
+    for k=0:m-1
+        Z(k*M+1:(k+1)*M,i)=X(:,i+k);
+    end
+end
+[U,~,~] = svd(Z);
+% economy size
+U = U(:,1:d);
+% selection matrix(phi)
+Uxphi = U(1:M*(m-1),:);
+Uyphi= U(M+1:M*m,:);
+% selection matrix(theta)
+Jxtheta=kron(eye(m),[eye(M-1) zeros(M-1,1)]);
+Jytheta=kron(eye(m),[zeros(M-1,1) eye(M-1)]);
+Uxtheta=Jxtheta*U;
+Uytheta=Jytheta*U;
+% jointly diagnolize
+uu1=inv(Uxphi'*Uxphi)*Uxphi'*Uyphi;
+[T,D1]=eig(uu1);
+uu2=inv(Uxtheta'*Uxtheta)*Uxtheta'*Uytheta;
+D2=inv(T)*uu2*T;
+% estimated theta and frequency
+for i=1:d
+    f(i)=angle(D1(i,i))/(2*pi);
+end
+for i=1:d
+    theta(i)=asin(angle(D2(i,i))/pi)*180/pi;
+end
+end
