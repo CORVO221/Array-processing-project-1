@@ -1,0 +1,128 @@
+
+clc
+clear
+%% signal model
+%question 1
+% qpsk alphabet
+alpha=[-1/sqrt(2)-1j/sqrt(2) -1/sqrt(2)+ 1j/sqrt(2) 1/sqrt(2)-1j/sqrt(2) 1/sqrt(2)+1j/sqrt(2)];
+N=10;
+P=8;
+sigma=0;
+s=[alpha(1);alpha.';alpha(3);alpha.'];
+[x,~]=gendata_conv(s,P,N,sigma);
+
+%question 2
+P=4;
+N=500;
+sigma=0;
+% construct s
+s=zeros(N,1);
+for i=1:N
+    s(i)=alpha(randi(4));
+end
+[x,H]=gendata_conv(s,P,N,sigma);
+H2=H(1:2*P,1:2);
+s2=[s(1:N-1).';s(2:N).'];
+X2=H2*s2;
+H22(:,1)=H2(:,2);
+H22(:,2)=H2(:,1);
+s22(1,:)=s2(2,:);
+s22(2,:)=s2(1,:);
+X22=H22*s22;
+%% zero forcing and wiener
+
+% question 1
+% model construction
+P=4;
+N=500;
+sigma=0.5;
+% construct s
+s=zeros(N,1);
+for i=1:N
+    s(i)=alpha(randi(4));
+end
+[x,H]=gendata_conv(s,P,N,sigma);
+H2=H(1:2*P,1:2);
+s2=[s(1:N-1).';s(2:N).'];
+% obtain X for x
+for i=1:N-1
+    X2(1:P,i)=x((i-1)*P+1:i*P);
+    X2(P+1:2*P,i)=x(i*P+1:(i+1)*P);
+end
+
+H22(:,1)=H2(:,2);
+H22(:,2)=H2(:,1);
+s22(1,:)=s2(2,:);
+s22(2,:)=s2(1,:);
+X22=H22*s22;
+% zero forcing
+wzf=H22*inv(H22'*H22)*[0 1]';
+szf=wzf'*X2;
+%wiener
+% wie=inv(H22*H22'+sigma^2*eye(8))*H22*[0 1]';
+% swie=wie'*X2;
+% scatterplot(szf);
+% legend('ZF')
+% hold on
+% scatterplot(swie);
+% legend('WIENER')
+
+% question 2
+% model construction
+P=8;
+N=500;
+sigma=0.5;
+% construct s
+s=zeros(N,1);
+for i=1:N
+    s(i)=alpha(randi(4));
+end
+[x,H]=gendata_conv(s,P,N,sigma);
+H2=H(1:2*P,1:2);
+s2=[s(1:N-1).';s(2:N).'];
+% obtain X for x
+for i=1:N-1
+    X2(1:P,i)=x((i-1)*P+1:i*P);
+    X2(P+1:2*P,i)=x(i*P+1:(i+1)*P);
+end
+
+H3(:,1)=H2(:,2);
+H3(:,2)=H2(:,1);
+s3(1,:)=s2(2,:);
+s3(2,:)=s2(1,:);
+% zero forcing
+wzf=H3*inv(H3'*H3)*[0 1]';
+szf=wzf'*X2;
+% wiener
+wie=inv(H3*H3'+sigma^2*eye(16))*H3*[0 1]';
+swie=wie'*X2;
+scatterplot(szf);
+legend('ZF')
+hold on
+scatterplot(swie);
+legend('WIENER')
+
+
+
+
+function [x,H] = gendata_conv(s,P,N,sigma)
+% construct little h[0] vector
+h=ones(P,1);
+for k=1:P-1
+    if k/P<0.25
+        h(k+1)=1;
+    elseif k/P<0.5
+        h(k+1)=-1;
+    elseif k/P<0.75
+        h(k+1)=1;
+    else 
+        h(k+1)=-1;
+    end
+end
+% construck H matrix
+H=kron(eye(N),h);
+% Noise
+Noise=sigma*sqrt(1/2)*(randn(N*P,1)+1j*randn(N*P,1));
+% vector x
+x=H*s+Noise;
+end
